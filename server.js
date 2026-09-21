@@ -141,7 +141,26 @@ app.patch("/api/qr/:qrId/toggle", async (req, res) => {
   }
 });
 
-// 7. Generar imagen PNG  GET /api/qr/:qrId/image.png
+// 8. Eliminar un QR  DELETE /api/qr/:qrId
+app.delete("/api/qr/:qrId", async (req, res) => {
+  const { qrId } = req.params;
+  try {
+    const qrRef = db.collection("dynamic_qrs").doc(qrId);
+    const doc = await qrRef.get();
+
+    if (!doc.exists) {
+      return res.status(404).json({ error: "QR no encontrado." });
+    }
+
+    await qrRef.delete();
+    return res.status(200).json({ message: "QR eliminado correctamente.", id: qrId });
+  } catch (error) {
+    console.error("Error eliminando el QR:", error);
+    return res.status(500).json({ error: "Error interno del servidor." });
+  }
+});
+
+// 9. Generar imagen PNG  GET /api/qr/:qrId/image.png
 app.get("/api/qr/:qrId/image.png", async (req, res) => {
   const { qrId } = req.params;
   const size = parseInt(req.query.size) || 300;  // ?size=400

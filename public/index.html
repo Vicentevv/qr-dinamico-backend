@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
@@ -192,6 +192,26 @@
       border: 1px solid rgba(239,68,68,0.3);
     }
     .btn-danger:hover { background: rgba(239,68,68,0.25); }
+
+    /* Modal de confirmación */
+    .modal-overlay {
+      position: fixed; inset: 0; z-index: 9998;
+      background: rgba(0,0,0,0.6);
+      backdrop-filter: blur(4px);
+      display: grid; place-items: center;
+      animation: fadeIn 0.2s ease;
+    }
+    .modal {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 32px;
+      max-width: 360px; width: 90%;
+      text-align: center;
+    }
+    .modal h3 { font-size: 1.1rem; margin-bottom: 10px; }
+    .modal p  { font-size: 0.85rem; color: var(--muted); margin-bottom: 24px; line-height: 1.5; }
+    .modal-btns { display: flex; gap: 10px; justify-content: center; }
 
     .btn-success {
       background: rgba(34,197,94,0.15);
@@ -471,6 +491,7 @@
             <button class="btn-sm ${active ? 'btn-danger' : 'btn-success'}" onclick="toggleActive('${q.id}', ${active})">
               ${active ? '⏸ Pausar' : '▶ Activar'}
             </button>
+            <button class="btn-sm btn-danger" onclick="confirmDelete('${q.id}')" title="Eliminar QR">🗑️</button>
           </div>
         </div>
       </div>
@@ -574,6 +595,40 @@
     a.href = `/api/qr/${id}/image.png?size=600`;
     a.download = `${id}.png`;
     a.click();
+  }
+
+  // ─── Eliminar QR ────────────────────────────────────────────
+  function confirmDelete(id) {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal">
+        <h3>🗑️ Eliminar QR</h3>
+        <p>¿Eliminar <strong>${id}</strong>? Esta acción es permanente. Los QR físicos impresos con este código dejarán de funcionar.</p>
+        <div class="modal-btns">
+          <button class="btn-sm btn-ghost" onclick="this.closest('.modal-overlay').remove()">Cancelar</button>
+          <button class="btn-sm btn-danger" onclick="deleteQR('${id}', this.closest('.modal-overlay'))">Sí, eliminar</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+  }
+
+  async function deleteQR(id, overlay) {
+    overlay.remove();
+    try {
+      const res = await fetch(`/api/qr/${id}`, { method: 'DELETE' });
+      if (!res.ok) throw new Error();
+      toast(`QR "${id}" eliminado`, 'success');
+      document.getElementById(`card-${id}`)?.remove();
+      const remaining = document.querySelectorAll('.qr-card').length;
+      if (remaining === 0) {
+        document.getElementById('qrGrid').innerHTML =
+          '<div class="empty"><div class="empty-icon">🔲</div><p>No tienes QRs todavía. ¡Crea el primero!</p></div>';
+      }
+      await loadQRs();  // actualiza stats
+    } catch {
+      toast('Error al eliminar el QR', 'error');
+    }
   }
 
   // ─── Copiar enlace de redirección ──────────────────────────
