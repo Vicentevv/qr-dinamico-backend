@@ -487,7 +487,8 @@
           <div class="qr-actions">
             <button class="btn-sm btn-ghost" onclick="downloadPNG('${q.id}')">⬇️ PNG</button>
             <button class="btn-sm btn-ghost" onclick="copyLink('${q.id}')">🔗 Copiar</button>
-            <button class="btn-sm btn-ghost" onclick="toggleEdit('${q.id}')">✏️ Editar</button>
+            <button class="btn-sm btn-ghost" onclick="toggleEdit('${q.id}')">✏️ URL</button>
+            <button class="btn-sm btn-ghost" onclick="toggleRename('${q.id}')">ID</button>
             <button class="btn-sm ${active ? 'btn-danger' : 'btn-success'}" onclick="toggleActive('${q.id}', ${active})">
               ${active ? '⏸ Pausar' : '▶ Activar'}
             </button>
@@ -501,8 +502,18 @@
           <input id="editUrl-${q.id}" type="url" value="${q.targetUrl}" />
         </div>
         <div style="display:flex;gap:8px;">
-          <button class="btn-sm btn-primary" onclick="updateQR('${q.id}')">Guardar cambios</button>
+          <button class="btn-sm btn-primary" onclick="updateQR('${q.id}')">Guardar URL</button>
           <button class="btn-sm btn-ghost" onclick="toggleEdit('${q.id}')">Cancelar</button>
+        </div>
+      </div>
+      <div class="edit-form" id="rename-${q.id}">
+        <div class="field">
+          <label>⚠️ Nuevo ID — el QR físico impreso dejará de funcionar si lo cambias</label>
+          <input id="renameInput-${q.id}" type="text" value="${q.id}" placeholder="nuevo-id" />
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-sm btn-primary" onclick="renameQR('${q.id}')">Cambiar ID</button>
+          <button class="btn-sm btn-ghost" onclick="toggleRename('${q.id}')">Cancelar</button>
         </div>
       </div>
     </div>`;
@@ -565,10 +576,14 @@
     }
   }
 
-  // ─── Editar URL ────────────────────────────────────────────
+  // ─── Toggle edit/rename forms ──────────────────────────
   function toggleEdit(id) {
-    const form = document.getElementById(`edit-${id}`);
-    form.classList.toggle('open');
+    document.getElementById(`rename-${id}`)?.classList.remove('open');
+    document.getElementById(`edit-${id}`).classList.toggle('open');
+  }
+  function toggleRename(id) {
+    document.getElementById(`edit-${id}`)?.classList.remove('open');
+    document.getElementById(`rename-${id}`).classList.toggle('open');
   }
 
   async function updateQR(id) {
@@ -586,6 +601,25 @@
       await renderAndLoad();
     } catch {
       toast('Error al actualizar el QR', 'error');
+    }
+  }
+
+  async function renameQR(oldId) {
+    const newId = document.getElementById(`renameInput-${oldId}`).value.trim();
+    if (!newId || newId === oldId) { toast('Ingresa un ID diferente', 'warning'); return; }
+
+    try {
+      const res = await fetch(`/api/qr/${oldId}/rename`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ newId })
+      });
+      const data = await res.json();
+      if (!res.ok) { toast(data.error || 'Error al renombrar', 'error'); return; }
+      toast(`QR renombrado: "${oldId}" → "${newId}"`, 'success');
+      await renderAndLoad();
+    } catch {
+      toast('Error al renombrar el QR', 'error');
     }
   }
 

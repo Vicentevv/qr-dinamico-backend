@@ -141,7 +141,44 @@ app.patch("/api/qr/:qrId/toggle", async (req, res) => {
   }
 });
 
-// 8. Eliminar un QR  DELETE /api/qr/:qrId
+// 8. Renombrar un QR  PATCH /api/qr/:qrId/rename
+app.patch("/api/qr/:qrId/rename", async (req, res) => {
+  const { qrId } = req.params;
+  const { newId } = req.body;
+
+  if (!newId || newId.trim() === "") {
+    return res.status(400).json({ error: "Se requiere el nuevo ID." });
+  }
+  if (newId === qrId) {
+    return res.status(400).json({ error: "El nuevo ID debe ser diferente al actual." });
+  }
+
+  try {
+    const oldRef = db.collection("dynamic_qrs").doc(qrId);
+    const newRef = db.collection("dynamic_qrs").doc(newId.trim());
+
+    const oldDoc = await oldRef.get();
+    if (!oldDoc.exists) {
+      return res.status(404).json({ error: "QR no encontrado." });
+    }
+
+    const newDoc = await newRef.get();
+    if (newDoc.exists) {
+      return res.status(409).json({ error: "Ya existe un QR con ese ID." });
+    }
+
+    // Copiar datos al nuevo ID y borrar el anterior
+    await newRef.set(oldDoc.data());
+    await oldRef.delete();
+
+    return res.status(200).json({ message: "QR renombrado correctamente.", oldId: qrId, newId: newId.trim() });
+  } catch (error) {
+    console.error("Error renombrando el QR:", error);
+    return res.status(500).json({ error: "Error interno del servidor." });
+  }
+});
+
+// 9. Eliminar un QR  DELETE /api/qr/:qrId
 app.delete("/api/qr/:qrId", async (req, res) => {
   const { qrId } = req.params;
   try {
