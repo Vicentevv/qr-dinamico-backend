@@ -1,0 +1,21 @@
+﻿# Dependencias
+node_modules/
+
+# Credenciales Firebase (NUNCA subir esto a GitHub)
+serviceAccountKey.json
+
+# Variables de entorno
+.env
+.env.local
+.env.production
+
+# Logs
+*.log
+npm-debug.log*
+
+# Sistema operativo
+.DS_Store
+Thumbs.db
+
+# Archivos temporales
+*.png
