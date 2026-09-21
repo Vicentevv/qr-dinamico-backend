@@ -37,6 +37,7 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+app.use(express.static("public"));
 
 // 2. Redireccion  GET /qr/:qrId
 app.get("/qr/:qrId", async (req, res) => {

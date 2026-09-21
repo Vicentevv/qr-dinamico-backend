@@ -1,0 +1,596 @@
+﻿<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QR Dinámico — Panel de Control</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d0f1a;
+      --surface: #13172b;
+      --surface2: #1a2040;
+      --border: rgba(255,255,255,0.07);
+      --accent: #6366f1;
+      --accent2: #818cf8;
+      --success: #22c55e;
+      --danger: #ef4444;
+      --warning: #f59e0b;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --radius: 16px;
+    }
+
+    body {
+      font-family: 'Inter', sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    /* Background glow */
+    body::before {
+      content: '';
+      position: fixed;
+      top: -200px; left: -200px;
+      width: 600px; height: 600px;
+      background: radial-gradient(circle, rgba(99,102,241,0.15) 0%, transparent 70%);
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    /* Header */
+    header {
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(13,15,26,0.85);
+      backdrop-filter: blur(20px);
+      border-bottom: 1px solid var(--border);
+      padding: 18px 32px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+
+    .logo {
+      display: flex; align-items: center; gap: 12px;
+      font-size: 1.2rem; font-weight: 700;
+      background: linear-gradient(135deg, #6366f1, #a78bfa);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    }
+
+    .logo-icon {
+      width: 38px; height: 38px;
+      background: linear-gradient(135deg, #6366f1, #a78bfa);
+      border-radius: 10px;
+      display: grid; place-items: center;
+      font-size: 1.1rem;
+      -webkit-text-fill-color: white;
+      flex-shrink: 0;
+    }
+
+    .badge {
+      background: rgba(99,102,241,0.2);
+      border: 1px solid rgba(99,102,241,0.4);
+      color: var(--accent2);
+      padding: 4px 12px;
+      border-radius: 999px;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+    }
+
+    /* Main layout */
+    main { max-width: 1200px; margin: 0 auto; padding: 40px 24px; position: relative; z-index: 1; }
+
+    /* Stats row */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 16px;
+      margin-bottom: 36px;
+    }
+
+    .stat-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px 24px;
+      display: flex; flex-direction: column; gap: 6px;
+      transition: transform 0.2s, border-color 0.2s;
+    }
+    .stat-card:hover { transform: translateY(-2px); border-color: rgba(99,102,241,0.3); }
+    .stat-label { font-size: 0.75rem; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em; }
+    .stat-value { font-size: 2rem; font-weight: 700; line-height: 1; }
+    .stat-value.purple { color: var(--accent2); }
+    .stat-value.green  { color: var(--success); }
+    .stat-value.orange { color: var(--warning); }
+
+    /* Create form */
+    .create-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 32px;
+      margin-bottom: 36px;
+    }
+
+    .section-title {
+      font-size: 1rem; font-weight: 600;
+      margin-bottom: 20px;
+      display: flex; align-items: center; gap: 8px;
+    }
+    .section-title::before { content: ''; display: block; width: 4px; height: 18px; background: var(--accent); border-radius: 4px; }
+
+    .form-row {
+      display: grid;
+      grid-template-columns: 180px 1fr auto;
+      gap: 12px;
+      align-items: end;
+    }
+
+    .field { display: flex; flex-direction: column; gap: 6px; }
+    .field label { font-size: 0.78rem; color: var(--muted); font-weight: 500; }
+
+    input {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 16px;
+      color: var(--text);
+      font-family: inherit;
+      font-size: 0.9rem;
+      outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+      width: 100%;
+    }
+    input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(99,102,241,0.15);
+    }
+    input::placeholder { color: var(--muted); }
+
+    button {
+      font-family: inherit;
+      font-weight: 600;
+      border: none;
+      cursor: pointer;
+      border-radius: 10px;
+      transition: all 0.2s;
+      display: inline-flex; align-items: center; gap: 6px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #6366f1, #818cf8);
+      color: white;
+      padding: 12px 24px;
+      font-size: 0.9rem;
+      white-space: nowrap;
+      box-shadow: 0 4px 20px rgba(99,102,241,0.3);
+    }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 24px rgba(99,102,241,0.4); }
+    .btn-primary:active { transform: translateY(0); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+    .btn-sm {
+      padding: 7px 14px;
+      font-size: 0.78rem;
+      border-radius: 8px;
+    }
+
+    .btn-ghost {
+      background: rgba(255,255,255,0.05);
+      color: var(--text);
+      border: 1px solid var(--border);
+    }
+    .btn-ghost:hover { background: rgba(255,255,255,0.09); }
+
+    .btn-danger {
+      background: rgba(239,68,68,0.15);
+      color: #f87171;
+      border: 1px solid rgba(239,68,68,0.3);
+    }
+    .btn-danger:hover { background: rgba(239,68,68,0.25); }
+
+    .btn-success {
+      background: rgba(34,197,94,0.15);
+      color: #4ade80;
+      border: 1px solid rgba(34,197,94,0.3);
+    }
+    .btn-success:hover { background: rgba(34,197,94,0.25); }
+
+    /* QR Grid */
+    .qr-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: 20px;
+    }
+
+    .qr-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+      transition: transform 0.2s, border-color 0.2s, box-shadow 0.2s;
+      animation: fadeIn 0.3s ease forwards;
+    }
+    .qr-card:hover {
+      transform: translateY(-3px);
+      border-color: rgba(99,102,241,0.3);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.3);
+    }
+    .qr-card.inactive { opacity: 0.55; }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .qr-card-header {
+      padding: 18px 20px 14px;
+      display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .qr-id {
+      font-weight: 700; font-size: 0.95rem;
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .status-dot.active  { background: var(--success); box-shadow: 0 0 6px var(--success); }
+    .status-dot.inactive { background: var(--muted); }
+
+    .status-tag {
+      font-size: 0.7rem; font-weight: 600;
+      padding: 3px 10px; border-radius: 999px;
+      letter-spacing: 0.04em;
+    }
+    .status-tag.active   { background: rgba(34,197,94,0.15); color: #4ade80; }
+    .status-tag.inactive { background: rgba(100,116,139,0.2); color: var(--muted); }
+
+    .qr-card-body {
+      padding: 20px;
+      display: flex; gap: 20px; align-items: flex-start;
+    }
+
+    .qr-preview {
+      width: 110px; height: 110px; flex-shrink: 0;
+      background: white;
+      border-radius: 10px;
+      overflow: hidden;
+      display: grid; place-items: center;
+    }
+    .qr-preview img { width: 100%; height: 100%; object-fit: contain; }
+    .qr-preview .loading { color: #999; font-size: 0.7rem; }
+
+    .qr-info { flex: 1; min-width: 0; }
+
+    .qr-url {
+      font-size: 0.8rem; color: var(--accent2);
+      word-break: break-all;
+      margin-bottom: 12px;
+      line-height: 1.4;
+    }
+
+    .qr-meta {
+      display: flex; gap: 14px; flex-wrap: wrap;
+      font-size: 0.75rem; color: var(--muted);
+      margin-bottom: 14px;
+    }
+    .qr-meta span { display: flex; align-items: center; gap: 4px; }
+
+    .qr-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+
+    /* Edit inline */
+    .edit-form {
+      padding: 0 20px 18px;
+      display: none;
+      gap: 10px;
+      flex-direction: column;
+    }
+    .edit-form.open { display: flex; }
+
+    /* Empty state */
+    .empty {
+      text-align: center; padding: 80px 20px;
+      color: var(--muted); grid-column: 1/-1;
+    }
+    .empty-icon { font-size: 3rem; margin-bottom: 12px; }
+    .empty p { font-size: 0.9rem; }
+
+    /* Toast */
+    #toast {
+      position: fixed; bottom: 28px; right: 28px; z-index: 9999;
+      display: flex; flex-direction: column; gap: 8px;
+    }
+    .toast-item {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 18px;
+      font-size: 0.85rem;
+      display: flex; align-items: center; gap: 10px;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+      animation: slideIn 0.3s ease;
+      min-width: 260px;
+    }
+    @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+
+    /* Loading spinner */
+    .spinner {
+      width: 20px; height: 20px;
+      border: 2px solid rgba(255,255,255,0.1);
+      border-top-color: var(--accent2);
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Responsive */
+    @media (max-width: 640px) {
+      .form-row { grid-template-columns: 1fr; }
+      header { padding: 14px 18px; }
+      main { padding: 24px 14px; }
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">⚡</div>
+    QR Dinámico
+  </div>
+  <span class="badge">PANEL DE CONTROL</span>
+</header>
+
+<main>
+
+  <!-- Stats -->
+  <div class="stats" id="stats">
+    <div class="stat-card">
+      <span class="stat-label">Total QRs</span>
+      <span class="stat-value purple" id="stat-total">—</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">QRs Activos</span>
+      <span class="stat-value green" id="stat-active">—</span>
+    </div>
+    <div class="stat-card">
+      <span class="stat-label">Total Escaneos</span>
+      <span class="stat-value orange" id="stat-scans">—</span>
+    </div>
+  </div>
+
+  <!-- Crear QR -->
+  <div class="create-card">
+    <div class="section-title">Crear nuevo QR</div>
+    <div class="form-row">
+      <div class="field">
+        <label for="newId">ID del QR</label>
+        <input id="newId" type="text" placeholder="mi-qr-001" />
+      </div>
+      <div class="field">
+        <label for="newUrl">URL de destino</label>
+        <input id="newUrl" type="url" placeholder="https://tu-sitio.com/pagina" />
+      </div>
+      <button class="btn-primary" id="btnCreate" onclick="createQR()">
+        <span>＋</span> Crear QR
+      </button>
+    </div>
+  </div>
+
+  <!-- Grid de QRs -->
+  <div class="section-title">Mis códigos QR</div>
+  <div class="qr-grid" id="qrGrid">
+    <div class="empty"><div class="spinner" style="margin: 0 auto 16px;"></div><p>Cargando QRs...</p></div>
+  </div>
+
+</main>
+
+<div id="toast"></div>
+
+<script>
+  const BASE = '';  // misma origen
+
+  // ─── Utilidades ────────────────────────────────────────────
+  function toast(msg, type = 'info') {
+    const icons = { success: '✅', error: '❌', info: 'ℹ️', warning: '⚠️' };
+    const el = document.createElement('div');
+    el.className = 'toast-item';
+    el.innerHTML = `<span>${icons[type]}</span> ${msg}`;
+    document.getElementById('toast').appendChild(el);
+    setTimeout(() => el.remove(), 3500);
+  }
+
+  function formatDate(ts) {
+    if (!ts) return '—';
+    const d = ts._seconds ? new Date(ts._seconds * 1000) : new Date(ts);
+    return d.toLocaleDateString('es', { day: '2-digit', month: 'short', year: 'numeric' });
+  }
+
+  // ─── Cargar QRs ────────────────────────────────────────────
+  async function loadQRs() {
+    try {
+      const res = await fetch('/api/qrs');
+      const qrs = await res.json();
+      renderGrid(qrs);
+      updateStats(qrs);
+    } catch (e) {
+      document.getElementById('qrGrid').innerHTML =
+        '<div class="empty"><div class="empty-icon">⚠️</div><p>Error cargando los QRs</p></div>';
+    }
+  }
+
+  function updateStats(qrs) {
+    document.getElementById('stat-total').textContent  = qrs.length;
+    document.getElementById('stat-active').textContent = qrs.filter(q => q.isActive).length;
+    document.getElementById('stat-scans').textContent  = qrs.reduce((a, q) => a + (q.scans || 0), 0);
+  }
+
+  // ─── Renderizar grid ───────────────────────────────────────
+  function renderGrid(qrs) {
+    const grid = document.getElementById('qrGrid');
+    if (!qrs.length) {
+      grid.innerHTML = '<div class="empty"><div class="empty-icon">🔲</div><p>No tienes QRs todavía. ¡Crea el primero!</p></div>';
+      return;
+    }
+    grid.innerHTML = qrs.map(q => cardHTML(q)).join('');
+  }
+
+  function cardHTML(q) {
+    const active = q.isActive;
+    return `
+    <div class="qr-card ${active ? '' : 'inactive'}" id="card-${q.id}">
+      <div class="qr-card-header">
+        <div class="qr-id">
+          <div class="status-dot ${active ? 'active' : 'inactive'}"></div>
+          ${q.id}
+        </div>
+        <span class="status-tag ${active ? 'active' : 'inactive'}">${active ? 'ACTIVO' : 'INACTIVO'}</span>
+      </div>
+      <div class="qr-card-body">
+        <div class="qr-preview" id="img-${q.id}">
+          <span class="loading">cargando…</span>
+        </div>
+        <div class="qr-info">
+          <div class="qr-url" title="${q.targetUrl}">${q.targetUrl}</div>
+          <div class="qr-meta">
+            <span>👁️ ${q.scans || 0} escaneos</span>
+            <span>📅 ${formatDate(q.createdAt)}</span>
+          </div>
+          <div class="qr-actions">
+            <button class="btn-sm btn-ghost" onclick="downloadPNG('${q.id}')">⬇️ PNG</button>
+            <button class="btn-sm btn-ghost" onclick="copyLink('${q.id}')">🔗 Copiar</button>
+            <button class="btn-sm btn-ghost" onclick="toggleEdit('${q.id}')">✏️ Editar</button>
+            <button class="btn-sm ${active ? 'btn-danger' : 'btn-success'}" onclick="toggleActive('${q.id}', ${active})">
+              ${active ? '⏸ Pausar' : '▶ Activar'}
+            </button>
+          </div>
+        </div>
+      </div>
+      <div class="edit-form" id="edit-${q.id}">
+        <div class="field">
+          <label>Nueva URL de destino</label>
+          <input id="editUrl-${q.id}" type="url" value="${q.targetUrl}" />
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn-sm btn-primary" onclick="updateQR('${q.id}')">Guardar cambios</button>
+          <button class="btn-sm btn-ghost" onclick="toggleEdit('${q.id}')">Cancelar</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  // Cargar imágenes lazy
+  function loadImages() {
+    document.querySelectorAll('[id^="img-"]').forEach(el => {
+      const id = el.id.replace('img-', '');
+      const img = new Image();
+      img.onload = () => { el.innerHTML = ''; el.appendChild(img); };
+      img.onerror = () => { el.innerHTML = '<span class="loading">sin imagen</span>'; };
+      img.src = `/api/qr/${id}/image.png?size=110`;
+      img.style.cssText = 'width:100%;height:100%;object-fit:contain;';
+    });
+  }
+
+  async function renderAndLoad() {
+    await loadQRs();
+    setTimeout(loadImages, 100);
+  }
+
+  // ─── Crear QR ──────────────────────────────────────────────
+  async function createQR() {
+    const id  = document.getElementById('newId').value.trim();
+    const url = document.getElementById('newUrl').value.trim();
+    if (!id || !url) { toast('Completa el ID y la URL', 'warning'); return; }
+
+    const btn = document.getElementById('btnCreate');
+    btn.disabled = true; btn.textContent = 'Creando…';
+
+    try {
+      const res = await fetch('/api/qr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, targetUrl: url })
+      });
+      if (!res.ok) throw new Error();
+      document.getElementById('newId').value = '';
+      document.getElementById('newUrl').value = '';
+      toast(`QR "${id}" creado exitosamente`, 'success');
+      await renderAndLoad();
+    } catch {
+      toast('Error al crear el QR', 'error');
+    } finally {
+      btn.disabled = false; btn.innerHTML = '<span>＋</span> Crear QR';
+    }
+  }
+
+  // ─── Toggle activo/inactivo ────────────────────────────────
+  async function toggleActive(id, currentActive) {
+    try {
+      const res = await fetch(`/api/qr/${id}/toggle`, { method: 'PATCH' });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      toast(`QR "${id}" ${data.isActive ? 'activado' : 'pausado'}`, 'success');
+      await renderAndLoad();
+    } catch {
+      toast('Error al cambiar el estado', 'error');
+    }
+  }
+
+  // ─── Editar URL ────────────────────────────────────────────
+  function toggleEdit(id) {
+    const form = document.getElementById(`edit-${id}`);
+    form.classList.toggle('open');
+  }
+
+  async function updateQR(id) {
+    const url = document.getElementById(`editUrl-${id}`).value.trim();
+    if (!url) { toast('Ingresa una URL válida', 'warning'); return; }
+
+    try {
+      const res = await fetch('/api/qr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id, targetUrl: url })
+      });
+      if (!res.ok) throw new Error();
+      toast(`QR "${id}" actualizado`, 'success');
+      await renderAndLoad();
+    } catch {
+      toast('Error al actualizar el QR', 'error');
+    }
+  }
+
+  // ─── Descargar PNG ─────────────────────────────────────────
+  function downloadPNG(id) {
+    const a = document.createElement('a');
+    a.href = `/api/qr/${id}/image.png?size=600`;
+    a.download = `${id}.png`;
+    a.click();
+  }
+
+  // ─── Copiar enlace de redirección ──────────────────────────
+  function copyLink(id) {
+    const url = `${location.origin}/qr/${id}`;
+    navigator.clipboard.writeText(url).then(() => {
+      toast(`Enlace copiado: ${url}`, 'success');
+    });
+  }
+
+  // ─── Tecla Enter en formulario ─────────────────────────────
+  document.getElementById('newUrl').addEventListener('keydown', e => {
+    if (e.key === 'Enter') createQR();
+  });
+
+  // ─── Init ──────────────────────────────────────────────────
+  renderAndLoad();
+</script>
+</body>
+</html>
