@@ -68,28 +68,39 @@ app.get("/qr/:qrId", async (req, res) => {
   }
 });
 
-// 3. Crear / Actualizar  POST /api/qr
+// 3. Crear QR con ID autoincrementado  POST /api/qr
 app.post("/api/qr", async (req, res) => {
-  const { id, targetUrl, isActive } = req.body;
+  const { targetUrl, alias, isActive } = req.body;
 
-  if (!id || !targetUrl) {
-    return res.status(400).json({ error: "Se requieren id y targetUrl." });
+  if (!targetUrl) {
+    return res.status(400).json({ error: "Se requiere targetUrl." });
   }
 
   try {
-    await db.collection("dynamic_qrs").doc(id).set(
-      {
-        targetUrl,
-        isActive: isActive !== undefined ? isActive : true,
-        createdAt: FieldValue.serverTimestamp(),
-        scans: 0,
-      },
-      { merge: true }
-    );
-    return res.status(200).json({ message: "QR configurado exitosamente.", id });
+    const counterRef = db.collection("_meta").doc("counter");
+
+    // Asignar ID numerico de forma atomica
+    const newId = await db.runTransaction(async (t) => {
+      const counterDoc = await t.get(counterRef);
+      const next = (counterDoc.exists ? counterDoc.data().lastId : 0) + 1;
+      t.set(counterRef, { lastId: next }, { merge: true });
+      return next;
+    });
+
+    const docId = String(newId);
+
+    await db.collection("dynamic_qrs").doc(docId).set({
+      targetUrl,
+      alias: alias || "",
+      isActive: isActive !== undefined ? isActive : true,
+      createdAt: FieldValue.serverTimestamp(),
+      scans: 0,
+    });
+
+    return res.status(200).json({ message: "QR creado exitosamente.", id: docId, alias: alias || "" });
   } catch (error) {
-    console.error("Error guardando el QR:", error);
-    return res.status(500).json({ error: "Error interno al guardar el QR." });
+    console.error("Error creando el QR:", error);
+    return res.status(500).json({ error: "Error interno al crear el QR." });
   }
 });
 
@@ -112,7 +123,14 @@ app.get("/api/qr/:qrId", async (req, res) => {
 app.get("/api/qrs", async (req, res) => {
   try {
     const snapshot = await db.collection("dynamic_qrs").get();
-    const qrs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    // Ordenar numericamente (1, 2, 3...) ignorando docs no numericos
+    const qrs = snapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }))
+      .sort((a, b) => {
+        const nA = parseInt(a.id), nB = parseInt(b.id);
+        if (!isNaN(nA) && !isNaN(nB)) return nA - nB;
+        return a.id.localeCompare(b.id);
+      });
     return res.status(200).json(qrs);
   } catch (error) {
     console.error("Error listando QRs:", error);
@@ -120,7 +138,30 @@ app.get("/api/qrs", async (req, res) => {
   }
 });
 
-// 6. Toggle activo/inactivo  PATCH /api/qr/:qrId/toggle
+// 6. Actualizar URL  PATCH /api/qr/:qrId
+app.patch("/api/qr/:qrId", async (req, res) => {
+  const { qrId } = req.params;
+  const { targetUrl } = req.body;
+
+  if (!targetUrl) {
+    return res.status(400).json({ error: "Se requiere targetUrl." });
+  }
+
+  try {
+    const qrRef = db.collection("dynamic_qrs").doc(qrId);
+    const doc = await qrRef.get();
+    if (!doc.exists) {
+      return res.status(404).json({ error: "QR no encontrado." });
+    }
+    await qrRef.update({ targetUrl });
+    return res.status(200).json({ message: "URL actualizada.", id: qrId });
+  } catch (error) {
+    console.error("Error actualizando URL:", error);
+    return res.status(500).json({ error: "Error interno del servidor." });
+  }
+});
+
+// 7. Toggle activo/inactivo  PATCH /api/qr/:qrId/toggle
 app.patch("/api/qr/:qrId/toggle", async (req, res) => {
   const { qrId } = req.params;
   try {
@@ -141,39 +182,25 @@ app.patch("/api/qr/:qrId/toggle", async (req, res) => {
   }
 });
 
-// 8. Renombrar un QR  PATCH /api/qr/:qrId/rename
-app.patch("/api/qr/:qrId/rename", async (req, res) => {
+// 8. Editar alias  PATCH /api/qr/:qrId/alias
+app.patch("/api/qr/:qrId/alias", async (req, res) => {
   const { qrId } = req.params;
-  const { newId } = req.body;
+  const { alias } = req.body;
 
-  if (!newId || newId.trim() === "") {
-    return res.status(400).json({ error: "Se requiere el nuevo ID." });
-  }
-  if (newId === qrId) {
-    return res.status(400).json({ error: "El nuevo ID debe ser diferente al actual." });
+  if (alias === undefined) {
+    return res.status(400).json({ error: "Se requiere el campo alias." });
   }
 
   try {
-    const oldRef = db.collection("dynamic_qrs").doc(qrId);
-    const newRef = db.collection("dynamic_qrs").doc(newId.trim());
-
-    const oldDoc = await oldRef.get();
-    if (!oldDoc.exists) {
+    const qrRef = db.collection("dynamic_qrs").doc(qrId);
+    const doc = await qrRef.get();
+    if (!doc.exists) {
       return res.status(404).json({ error: "QR no encontrado." });
     }
-
-    const newDoc = await newRef.get();
-    if (newDoc.exists) {
-      return res.status(409).json({ error: "Ya existe un QR con ese ID." });
-    }
-
-    // Copiar datos al nuevo ID y borrar el anterior
-    await newRef.set(oldDoc.data());
-    await oldRef.delete();
-
-    return res.status(200).json({ message: "QR renombrado correctamente.", oldId: qrId, newId: newId.trim() });
+    await qrRef.update({ alias: alias.trim() });
+    return res.status(200).json({ message: "Alias actualizado.", id: qrId, alias: alias.trim() });
   } catch (error) {
-    console.error("Error renombrando el QR:", error);
+    console.error("Error actualizando alias:", error);
     return res.status(500).json({ error: "Error interno del servidor." });
   }
 });

@@ -392,8 +392,8 @@
     <div class="section-title">Crear nuevo QR</div>
     <div class="form-row">
       <div class="field">
-        <label for="newId">ID del QR</label>
-        <input id="newId" type="text" placeholder="mi-qr-001" />
+        <label for="newAlias">Alias (opcional)</label>
+        <input id="newAlias" type="text" placeholder="menu-restaurante" />
       </div>
       <div class="field">
         <label for="newUrl">URL de destino</label>
@@ -465,12 +465,14 @@
 
   function cardHTML(q) {
     const active = q.isActive;
+    const alias = q.alias || '';
     return `
     <div class="qr-card ${active ? '' : 'inactive'}" id="card-${q.id}">
       <div class="qr-card-header">
         <div class="qr-id">
           <div class="status-dot ${active ? 'active' : 'inactive'}"></div>
-          ${q.id}
+          <span style="color:var(--muted);font-weight:500;font-size:0.85rem">#${q.id}</span>
+          ${alias ? `<span style="color:var(--text);font-weight:700">${alias}</span>` : '<span style="color:var(--muted);font-style:italic;font-size:0.8rem">sin alias</span>'}
         </div>
         <span class="status-tag ${active ? 'active' : 'inactive'}">${active ? 'ACTIVO' : 'INACTIVO'}</span>
       </div>
@@ -488,7 +490,7 @@
             <button class="btn-sm btn-ghost" onclick="downloadPNG('${q.id}')">⬇️ PNG</button>
             <button class="btn-sm btn-ghost" onclick="copyLink('${q.id}')">🔗 Copiar</button>
             <button class="btn-sm btn-ghost" onclick="toggleEdit('${q.id}')">✏️ URL</button>
-            <button class="btn-sm btn-ghost" onclick="toggleRename('${q.id}')">ID</button>
+            <button class="btn-sm btn-ghost" onclick="toggleRename('${q.id}')">🏷️ Alias</button>
             <button class="btn-sm ${active ? 'btn-danger' : 'btn-success'}" onclick="toggleActive('${q.id}', ${active})">
               ${active ? '⏸ Pausar' : '▶ Activar'}
             </button>
@@ -508,11 +510,11 @@
       </div>
       <div class="edit-form" id="rename-${q.id}">
         <div class="field">
-          <label>⚠️ Nuevo ID — el QR físico impreso dejará de funcionar si lo cambias</label>
-          <input id="renameInput-${q.id}" type="text" value="${q.id}" placeholder="nuevo-id" />
+          <label>Alias — nombre amigable (puedes cambiarlo cuando quieras)</label>
+          <input id="aliasInput-${q.id}" type="text" value="${alias}" placeholder="ej: menu-principal" />
         </div>
         <div style="display:flex;gap:8px;">
-          <button class="btn-sm btn-primary" onclick="renameQR('${q.id}')">Cambiar ID</button>
+          <button class="btn-sm btn-primary" onclick="updateAlias('${q.id}')">Guardar alias</button>
           <button class="btn-sm btn-ghost" onclick="toggleRename('${q.id}')">Cancelar</button>
         </div>
       </div>
@@ -538,9 +540,9 @@
 
   // ─── Crear QR ──────────────────────────────────────────────
   async function createQR() {
-    const id  = document.getElementById('newId').value.trim();
-    const url = document.getElementById('newUrl').value.trim();
-    if (!id || !url) { toast('Completa el ID y la URL', 'warning'); return; }
+    const alias = document.getElementById('newAlias').value.trim();
+    const url   = document.getElementById('newUrl').value.trim();
+    if (!url) { toast('Ingresa la URL de destino', 'warning'); return; }
 
     const btn = document.getElementById('btnCreate');
     btn.disabled = true; btn.textContent = 'Creando…';
@@ -549,12 +551,14 @@
       const res = await fetch('/api/qr', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, targetUrl: url })
+        body: JSON.stringify({ targetUrl: url, alias })
       });
+      const data = await res.json();
       if (!res.ok) throw new Error();
-      document.getElementById('newId').value = '';
+      document.getElementById('newAlias').value = '';
       document.getElementById('newUrl').value = '';
-      toast(`QR "${id}" creado exitosamente`, 'success');
+      const label = data.alias ? `"${data.alias}"` : `#${data.id}`;
+      toast(`QR ${label} creado con ID #${data.id}`, 'success');
       await renderAndLoad();
     } catch {
       toast('Error al crear el QR', 'error');
@@ -591,35 +595,32 @@
     if (!url) { toast('Ingresa una URL válida', 'warning'); return; }
 
     try {
-      const res = await fetch('/api/qr', {
-        method: 'POST',
+      const res = await fetch(`/api/qr/${id}`, {
+        method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, targetUrl: url })
+        body: JSON.stringify({ targetUrl: url })
       });
       if (!res.ok) throw new Error();
-      toast(`QR "${id}" actualizado`, 'success');
+      toast(`QR #${id} URL actualizada`, 'success');
       await renderAndLoad();
     } catch {
       toast('Error al actualizar el QR', 'error');
     }
   }
 
-  async function renameQR(oldId) {
-    const newId = document.getElementById(`renameInput-${oldId}`).value.trim();
-    if (!newId || newId === oldId) { toast('Ingresa un ID diferente', 'warning'); return; }
-
+  async function updateAlias(id) {
+    const alias = document.getElementById(`aliasInput-${id}`).value.trim();
     try {
-      const res = await fetch(`/api/qr/${oldId}/rename`, {
+      const res = await fetch(`/api/qr/${id}/alias`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ newId })
+        body: JSON.stringify({ alias })
       });
-      const data = await res.json();
-      if (!res.ok) { toast(data.error || 'Error al renombrar', 'error'); return; }
-      toast(`QR renombrado: "${oldId}" → "${newId}"`, 'success');
+      if (!res.ok) throw new Error();
+      toast(`Alias de #${id} actualizado${alias ? ': "' + alias + '"' : ' (eliminado)'}`, 'success');
       await renderAndLoad();
     } catch {
-      toast('Error al renombrar el QR', 'error');
+      toast('Error al actualizar el alias', 'error');
     }
   }
 
