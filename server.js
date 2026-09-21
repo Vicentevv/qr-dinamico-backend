@@ -10,15 +10,23 @@ const { initializeApp, cert } = require("firebase-admin/app");
 const { getFirestore, FieldValue } = require("firebase-admin/firestore");
 
 // 1. Inicializar Firebase Admin
-const keyPath = path.join(__dirname, "serviceAccountKey.json");
+// En producción (Render): usa la variable de entorno FIREBASE_CREDENTIALS
+// En local: usa el archivo serviceAccountKey.json
+let serviceAccount;
 
-if (!fs.existsSync(keyPath)) {
-  console.error("\n  No se encontro serviceAccountKey.json");
-  console.error("   Descargalo desde Firebase Console > Configuracion > Cuentas de servicio\n");
-  process.exit(1);
+if (process.env.FIREBASE_CREDENTIALS) {
+  // Producción: credenciales como JSON string en variable de entorno
+  serviceAccount = JSON.parse(process.env.FIREBASE_CREDENTIALS);
+} else {
+  // Local: archivo JSON
+  const keyPath = path.join(__dirname, "serviceAccountKey.json");
+  if (!fs.existsSync(keyPath)) {
+    console.error("\n  No se encontro serviceAccountKey.json");
+    console.error("   Descargalo desde Firebase Console > Configuracion > Cuentas de servicio\n");
+    process.exit(1);
+  }
+  serviceAccount = require(keyPath);
 }
-
-const serviceAccount = require(keyPath);
 
 initializeApp({
   credential: cert(serviceAccount),
