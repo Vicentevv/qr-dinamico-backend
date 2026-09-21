@@ -251,8 +251,7 @@ app.get("/api/qr/:qrId/image.png", async (req, res) => {
     });
 
     const docData = doc.data();
-    const aliasText = docData.alias ? ` - ${docData.alias}` : "";
-    const textToDraw = `#${qrId}${aliasText}`;
+    const textToDraw = `#${qrId}`;
 
     const img = await loadImage(buffer);
     
