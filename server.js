@@ -4,6 +4,7 @@ const cors = require("cors");
 const path = require("path");
 const fs = require("fs");
 const QRCode = require("qrcode");
+const { createCanvas, loadImage } = require("canvas");
 
 // Firebase Admin SDK modular (v10+)
 const { initializeApp, cert } = require("firebase-admin/app");
@@ -249,9 +250,39 @@ app.get("/api/qr/:qrId/image.png", async (req, res) => {
       },
     });
 
+    const docData = doc.data();
+    const aliasText = docData.alias ? ` - ${docData.alias}` : "";
+    const textToDraw = `#${qrId}${aliasText}`;
+
+    const img = await loadImage(buffer);
+    
+    // Añadir espacio extra abajo para el texto (15% del tamaño o min 30px)
+    const textHeight = Math.max(30, Math.floor(size * 0.15));
+    const canvas = createCanvas(size, size + textHeight);
+    const ctx = canvas.getContext("2d");
+
+    // Fondo blanco
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    // Dibujar el QR arriba
+    ctx.drawImage(img, 0, 0, size, size);
+
+    // Dibujar el texto centrado abajo
+    ctx.fillStyle = "#000000";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const fontSize = Math.max(12, Math.floor(size * 0.06));
+    ctx.font = `bold ${fontSize}px sans-serif`;
+    
+    // Dibujar el texto
+    ctx.fillText(textToDraw, size / 2, size + (textHeight / 2));
+
+    const finalBuffer = canvas.toBuffer("image/png");
+
     res.setHeader("Content-Type", "image/png");
     res.setHeader("Content-Disposition", 'inline; filename="' + qrId + '.png"');
-    return res.send(buffer);
+    return res.send(finalBuffer);
   } catch (error) {
     console.error("Error generando imagen PNG:", error);
     return res.status(500).json({ error: "Error generando la imagen." });
