@@ -315,7 +315,26 @@ app.get("/api/qr/:qrId/image.svg", async (req, res) => {
   }
 });
 
-// 9. Health check  GET /health
+// 10. Reset de base de datos (PELIGROSO)  POST /api/admin/reset
+app.post("/api/admin/reset", async (req, res) => {
+  try {
+    const snapshot = await db.collection("dynamic_qrs").get();
+    const batch = db.batch();
+    snapshot.docs.forEach((doc) => {
+      batch.delete(doc.ref);
+    });
+    await batch.commit();
+
+    await db.collection("_meta").doc("counter").set({ lastId: 0 });
+
+    return res.status(200).json({ message: "Base de datos reiniciada. Todos los QRs han sido eliminados." });
+  } catch (error) {
+    console.error("Error reseteando DB:", error);
+    return res.status(500).json({ error: "Error interno del servidor." });
+  }
+});
+
+// 11. Health check  GET /health
 app.get("/health", (_req, res) => {
   res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
 });

@@ -366,7 +366,10 @@
     <div class="logo-icon">⚡</div>
     QR Dinámico
   </div>
-  <span class="badge">PANEL DE CONTROL</span>
+  <div style="display: flex; gap: 12px; align-items: center;">
+    <span class="badge">PANEL DE CONTROL</span>
+    <button class="btn-sm btn-danger" onclick="confirmResetDB()" style="padding: 4px 10px; font-size: 0.7rem; letter-spacing: 0.05em;" title="Borrar toda la base de datos">⚠️ RESET DB</button>
+  </div>
 </header>
 
 <main>
@@ -672,6 +675,34 @@
     navigator.clipboard.writeText(url).then(() => {
       toast(`Enlace copiado: ${url}`, 'success');
     });
+  }
+
+  // ─── Reset de Base de Datos ────────────────────────────────
+  function confirmResetDB() {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal">
+        <h3 style="color: var(--danger);">⚠️ ¡PELIGRO EXTREMO!</h3>
+        <p>Estás a punto de <strong>borrar TODOS los códigos QR</strong> y reiniciar el contador a cero.<br><br>Los códigos impresos dejarán de funcionar para siempre. Esta acción NO se puede deshacer.</p>
+        <div class="modal-btns">
+          <button class="btn-sm btn-ghost" onclick="this.closest('.modal-overlay').remove()">Cancelar</button>
+          <button class="btn-sm btn-danger" onclick="resetDB(this.closest('.modal-overlay'))">Sí, BORRAR TODO</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+  }
+
+  async function resetDB(overlay) {
+    overlay.remove();
+    try {
+      const res = await fetch('/api/admin/reset', { method: 'POST' });
+      if (!res.ok) throw new Error();
+      toast('¡BASE DE DATOS REINICIADA!', 'success');
+      await renderAndLoad();
+    } catch {
+      toast('Error al reiniciar la base de datos', 'error');
+    }
   }
 
   // ─── Tecla Enter en formulario ─────────────────────────────
