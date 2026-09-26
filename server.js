@@ -38,6 +38,24 @@ const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+// 1.5. Middleware de seguridad con PIN
+const ADMIN_PIN = process.env.ADMIN_PIN || "010223"; // Configura esto en Render como variable de entorno
+
+app.use("/api", (req, res, next) => {
+  // Permitir el acceso público a las imágenes de los QRs
+  if (req.path.match(/^\/qr\/[^\/]+\/image\.(png|svg)$/)) {
+    return next();
+  }
+
+  // Validar el PIN para el resto de peticiones a /api
+  const pin = req.headers["x-pin"];
+  if (pin !== ADMIN_PIN) {
+    return res.status(401).json({ error: "No autorizado. PIN incorrecto." });
+  }
+  next();
+});
+
 app.use(express.static("public"));
 
 // 2. Redireccion  GET /qr/:qrId
@@ -254,7 +272,7 @@ app.get("/api/qr/:qrId/image.png", async (req, res) => {
     const textToDraw = `#${qrId}`;
 
     const img = await loadImage(buffer);
-    
+
     // Añadir espacio extra abajo para el texto (15% del tamaño o min 30px)
     const textHeight = Math.max(30, Math.floor(size * 0.15));
     const canvas = createCanvas(size, size + textHeight);
@@ -273,7 +291,7 @@ app.get("/api/qr/:qrId/image.png", async (req, res) => {
     ctx.textBaseline = "middle";
     const fontSize = Math.max(12, Math.floor(size * 0.06));
     ctx.font = `bold ${fontSize}px sans-serif`;
-    
+
     // Dibujar el texto
     ctx.fillText(textToDraw, size / 2, size + (textHeight / 2));
 
@@ -315,26 +333,7 @@ app.get("/api/qr/:qrId/image.svg", async (req, res) => {
   }
 });
 
-// 10. Reset de base de datos (PELIGROSO)  POST /api/admin/reset
-app.post("/api/admin/reset", async (req, res) => {
-  try {
-    const snapshot = await db.collection("dynamic_qrs").get();
-    const batch = db.batch();
-    snapshot.docs.forEach((doc) => {
-      batch.delete(doc.ref);
-    });
-    await batch.commit();
-
-    await db.collection("_meta").doc("counter").set({ lastId: 0 });
-
-    return res.status(200).json({ message: "Base de datos reiniciada. Todos los QRs han sido eliminados." });
-  } catch (error) {
-    console.error("Error reseteando DB:", error);
-    return res.status(500).json({ error: "Error interno del servidor." });
-  }
-});
-
-// 11. Health check  GET /health
+// 9. Health check  GET /health
 app.get("/health", (_req, res) => {
   res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
 });

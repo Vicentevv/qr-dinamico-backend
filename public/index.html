@@ -351,6 +351,38 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* PIN Overlay */
+    #pinOverlay {
+      position: fixed; inset: 0; z-index: 99999;
+      background: var(--bg);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      transition: opacity 0.3s ease, visibility 0.3s ease;
+    }
+    #pinOverlay.hidden {
+      opacity: 0; visibility: hidden; pointer-events: none;
+    }
+    #pinBox {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 40px;
+      text-align: center;
+      max-width: 400px; width: 90%;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    }
+    #pinBox h2 { margin-bottom: 12px; color: var(--text); font-size: 1.4rem; }
+    #pinBox p { margin-bottom: 24px; color: var(--muted); font-size: 0.9rem; line-height: 1.5; }
+    .pin-input-group { display: flex; gap: 10px; justify-content: center; margin-bottom: 20px; }
+    #pinInput {
+      background: var(--surface2); border: 1px solid var(--border);
+      color: var(--text); padding: 14px; border-radius: 12px;
+      font-size: 1.5rem; text-align: center; width: 100%;
+      letter-spacing: 0.3em; outline: none;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    #pinInput:focus { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(99,102,241,0.15); }
+    #pinError { color: var(--danger); font-size: 0.85rem; margin-top: 10px; display: none; }
+
     /* Responsive */
     @media (max-width: 640px) {
       .form-row { grid-template-columns: 1fr; }
@@ -361,15 +393,26 @@
 </head>
 <body>
 
+<!-- Pantalla de PIN -->
+<div id="pinOverlay">
+  <div id="pinBox">
+    <div class="logo-icon" style="margin: 0 auto 20px; width: 48px; height: 48px; font-size: 1.4rem;">⚡</div>
+    <h2>Panel de Control</h2>
+    <p>Ingresa tu PIN de seguridad para acceder a la gestión de códigos QR.</p>
+    <div class="pin-input-group">
+      <input type="password" id="pinInput" placeholder="••••" autocomplete="off" />
+    </div>
+    <button class="btn-primary" style="width: 100%; justify-content: center; padding: 14px;" onclick="checkPin()">Acceder</button>
+    <div id="pinError">PIN incorrecto</div>
+  </div>
+</div>
+
 <header>
   <div class="logo">
     <div class="logo-icon">⚡</div>
     QR Dinámico
   </div>
-  <div style="display: flex; gap: 12px; align-items: center;">
-    <span class="badge">PANEL DE CONTROL</span>
-    <button class="btn-sm btn-danger" onclick="confirmResetDB()" style="padding: 4px 10px; font-size: 0.7rem; letter-spacing: 0.05em;" title="Borrar toda la base de datos">⚠️ RESET DB</button>
-  </div>
+  <span class="badge">PANEL DE CONTROL</span>
 </header>
 
 <main>
@@ -420,6 +463,67 @@
 
 <script>
   const BASE = '';  // misma origen
+
+  // ─── Seguridad (PIN) ───────────────────────────────────────
+  let currentPin = localStorage.getItem('qr_admin_pin') || '';
+
+  // Ocultar la pantalla de PIN si ya lo tenemos guardado
+  if (currentPin) {
+    document.getElementById('pinOverlay').classList.add('hidden');
+  } else {
+    document.getElementById('pinInput').focus();
+  }
+
+  function checkPin() {
+    const pin = document.getElementById('pinInput').value.trim();
+    if (!pin) return;
+    currentPin = pin;
+    localStorage.setItem('qr_admin_pin', currentPin);
+    document.getElementById('pinOverlay').classList.add('hidden');
+    document.getElementById('pinError').style.display = 'none';
+    renderAndLoad();
+  }
+
+  document.getElementById('pinInput').addEventListener('keydown', e => {
+    if (e.key === 'Enter') checkPin();
+  });
+
+  function showPinScreen() {
+    document.getElementById('pinOverlay').classList.remove('hidden');
+    document.getElementById('pinInput').value = '';
+    document.getElementById('pinInput').focus();
+    document.getElementById('pinError').style.display = 'block';
+    localStorage.removeItem('qr_admin_pin');
+    currentPin = '';
+  }
+
+  // Interceptar todos los fetch para inyectar el PIN y manejar el 401
+  const originalFetch = window.fetch;
+  window.fetch = async function() {
+    let [resource, config] = arguments;
+    
+    if (typeof resource === 'string' && resource.startsWith('/api/')) {
+      if (!config) config = {};
+      if (!config.headers) config.headers = {};
+      
+      // Si headers es un objeto normal (no Headers object), lo podemos mutar así:
+      if (config.headers instanceof Headers) {
+        config.headers.append('x-pin', currentPin);
+      } else {
+        config.headers['x-pin'] = currentPin;
+      }
+    }
+    
+    const response = await originalFetch(resource, config);
+    
+    if (response.status === 401 && typeof resource === 'string' && resource.startsWith('/api/')) {
+      showPinScreen();
+      // Throw para detener la ejecución del fetch actual
+      throw new Error('No autorizado');
+    }
+    
+    return response;
+  };
 
   // ─── Utilidades ────────────────────────────────────────────
   function toast(msg, type = 'info') {
@@ -677,41 +781,15 @@
     });
   }
 
-  // ─── Reset de Base de Datos ────────────────────────────────
-  function confirmResetDB() {
-    const overlay = document.createElement('div');
-    overlay.className = 'modal-overlay';
-    overlay.innerHTML = `
-      <div class="modal">
-        <h3 style="color: var(--danger);">⚠️ ¡PELIGRO EXTREMO!</h3>
-        <p>Estás a punto de <strong>borrar TODOS los códigos QR</strong> y reiniciar el contador a cero.<br><br>Los códigos impresos dejarán de funcionar para siempre. Esta acción NO se puede deshacer.</p>
-        <div class="modal-btns">
-          <button class="btn-sm btn-ghost" onclick="this.closest('.modal-overlay').remove()">Cancelar</button>
-          <button class="btn-sm btn-danger" onclick="resetDB(this.closest('.modal-overlay'))">Sí, BORRAR TODO</button>
-        </div>
-      </div>`;
-    document.body.appendChild(overlay);
-  }
-
-  async function resetDB(overlay) {
-    overlay.remove();
-    try {
-      const res = await fetch('/api/admin/reset', { method: 'POST' });
-      if (!res.ok) throw new Error();
-      toast('¡BASE DE DATOS REINICIADA!', 'success');
-      await renderAndLoad();
-    } catch {
-      toast('Error al reiniciar la base de datos', 'error');
-    }
-  }
-
   // ─── Tecla Enter en formulario ─────────────────────────────
   document.getElementById('newUrl').addEventListener('keydown', e => {
     if (e.key === 'Enter') createQR();
   });
 
   // ─── Init ──────────────────────────────────────────────────
-  renderAndLoad();
+  if (currentPin) {
+    renderAndLoad();
+  }
 </script>
 </body>
 </html>
